@@ -8,6 +8,7 @@
 package org.rust.cargo.project.workspace
 
 import com.intellij.navigation.ItemPresentation
+import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.AdditionalLibraryRootsProvider
 import com.intellij.openapi.roots.SyntheticLibrary
@@ -19,7 +20,6 @@ import org.rust.cargo.project.model.cargoProjects
 import org.rust.cargo.project.workspace.PackageOrigin.*
 import org.rust.cargo.toolchain.impl.RustcVersion
 import org.rust.ide.icons.RsIcons
-import org.rust.openapiext.checkReadAccessAllowed
 import org.rust.stdext.buildList
 import org.rust.stdext.exhaustive
 import javax.swing.Icon
@@ -66,9 +66,12 @@ class GeneratedCodeFakeLibrary(private val sourceRoots: Set<VirtualFile>) : Synt
 
 class RsAdditionalLibraryRootsProvider : AdditionalLibraryRootsProvider() {
     override fun getAdditionalProjectLibraries(project: Project): Collection<SyntheticLibrary> {
-        checkReadAccessAllowed()
-        return project.cargoProjects.allProjects
-            .smartFlatMap { it.ideaLibraries }
+        // BACKCOMPAT: 2021.2. Remove `runReadAction`, add `checkReadAccessAllowed()`.
+        //                     Test it with SSH run target with rsync
+        return runReadAction {
+            project.cargoProjects.allProjects
+                .smartFlatMap { it.ideaLibraries }
+        }
     }
 
     override fun getRootsToWatch(project: Project): Collection<VirtualFile> =

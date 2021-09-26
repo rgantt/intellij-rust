@@ -38,6 +38,7 @@ import org.rust.cargo.runconfig.CargoRunState
 import org.rust.cargo.runconfig.RsCommandConfiguration
 import org.rust.cargo.runconfig.addFormatJsonOption
 import org.rust.cargo.runconfig.command.CargoCommandConfiguration
+import org.rust.cargo.runconfig.target.localBuildArgsForRemoteRun
 import org.rust.cargo.runconfig.wasmpack.WasmPackBuildTaskProvider
 import org.rust.cargo.toolchain.CargoCommandLine
 import org.rust.cargo.util.CargoArgsParser.Companion.parseArgs
@@ -76,6 +77,12 @@ object CargoBuildManager {
                 .mapNotNull { it.rustcInfo?.version?.semver }
                 .minOrNull() ?: return false
             return minVersion >= MIN_RUSTC_VERSION
+        }
+
+    val CargoCommandConfiguration.isBuildToolWindowEnabled: Boolean
+        get() {
+            if (!project.isBuildToolWindowEnabled) return false
+            return defaultTargetName == null || !buildOnRemoteTarget
         }
 
     fun build(buildConfiguration: CargoBuildConfiguration): Future<CargoBuildResult> {
@@ -224,7 +231,8 @@ object CargoBuildManager {
         val command = args.firstOrNull() ?: return null
         if (command !in BUILDABLE_COMMANDS) return null
         val additionalArguments = args.drop(1)
-        val (commandArguments, _) = parseArgs(command, additionalArguments)
+        val commandArguments = parseArgs(command, additionalArguments).commandArguments.toMutableList()
+        commandArguments.addAll(configuration.localBuildArgsForRemoteRun)
 
         // https://github.com/intellij-rust/intellij-rust/issues/3707
         if (command == "test" && commandArguments.contains("--doc")) return null
@@ -240,6 +248,9 @@ object CargoBuildManager {
         // building does not require root privileges and redirect input anyway
         buildConfiguration.withSudo = false
         buildConfiguration.isRedirectInput = false
+
+        buildConfiguration.defaultTargetName = buildConfiguration.defaultTargetName
+            .takeIf { buildConfiguration.buildOnRemoteTarget }
 
         return buildConfiguration
     }
